@@ -215,7 +215,7 @@ document.onkeydown = function() {
         output.innerHTML = "最初の頂点と逆方向にベクトルをとる";
         break;
       case 2:
-        output.innerHTML = "すでにある辺に垂直で、原点から遠ざかる方向にベクトルをとる";
+        output.innerHTML = "すでにある辺に垂直で、原点に向かう方向にベクトルをとる";
         break;
     }
   }
