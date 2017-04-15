@@ -22,7 +22,7 @@ class Sphere {
     const r = Math.random() * 0.5 + 0.4;
     const center = new THREE.Vector3((Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 1.5);
     const geom = new THREE.SphereGeometry(r, 10, 10);
-    const mat = new THREE.MeshNormalMaterial({color:0xffffff, opacity: 0.8, transparent: true});
+    const mat = new THREE.MeshNormalMaterial({opacity: 0.8, transparent: true});
     const mesh = new THREE.Mesh(geom, mat);
     mesh.position.set(center.x, center.y, center.z);
     scene.add(mesh);
@@ -195,8 +195,8 @@ origin.renderOrder = 1;
 scene.add(origin);
 
 const output = document.getElementById("output");
-output.innerHTML = "Press any key";
-document.onkeydown = function() {
+output.innerHTML = "Press button";
+window.step = function() {
   const res = g.next();
   if (res.done) {
     if (res.value !== undefined) {

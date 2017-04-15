@@ -163,8 +163,8 @@ const clear = _ => {
 };
 
 const output = document.getElementById("output");
-output.innerHTML = "Press any key";
-document.onkeydown = function() {
+output.innerHTML = "Press button";
+window.step = function() {
   const res = g.next();
   if (res.done) {
     if (res.value !== undefined) {

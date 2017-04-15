@@ -223,7 +223,7 @@ const clear = _ => {
 
 const output = document.getElementById("output");
 output.innerHTML = "Press any key";
-document.onkeydown = function() {
+window.step = function() {
   const res = g.next();
   if (res.done) {
     if (res.value) {
@@ -240,7 +240,7 @@ document.onkeydown = function() {
     info.result.forEach(remove);
     remove(circle.mesh);
     init();
-    output.innerHTML = "Press any key";
+    output.innerHTML = "Press button";
     return;
   }
   const next = res.value;
