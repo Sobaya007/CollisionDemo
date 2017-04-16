@@ -1,15 +1,3 @@
-const renderer = new THREE.WebGLRenderer();
-renderer.setClearColor(0x000000);
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(500, 500);
-document.getElementById("container").appendChild(renderer.domElement);
-
-const camera = new THREE.OrthographicCamera(2, -2, 2, -2, -2, 2);
-camera.lookAt(new THREE.Vector3(0,0,1));
-
-const scene = new THREE.Scene();
-scene.add(new THREE.AmbientLight(0xffffff));
-
 class Circle {
   constructor() {
     const r = Math.random() * 0.8 + 0.2;
@@ -30,7 +18,6 @@ const remove = mesh => {
   mesh.material.dispose();
 };
 
-
 function* GJK(support) {
   //1
   const a0 = Math.random() * 2 * Math.PI;
@@ -44,7 +31,7 @@ function* GJK(support) {
     return true;
   }
   //3
-  const v1 = new THREE.Vector2(-p0.x, -p0.y).normalize();
+  const v1 = p0.clone().negate().normalize();
   yield {vector: v1, phase : 1};
   let p1 = support(v1);
   yield {points: [p0, p1]};
@@ -57,8 +44,7 @@ function* GJK(support) {
     //5
     const v2 = new THREE.Vector2(p0.y-p1.y, p1.x-p0.x).normalize();
     if (v2.dot(p0) > 0) {
-      v2.x = -v2.x;
-      v2.y = -v2.y;
+      v2.negate();
     }
     yield {vector: v2, phase : 2};
     let p2 = support(v2);
@@ -72,8 +58,7 @@ function* GJK(support) {
     const isOutside = (p, e0, e1) => {
       const n = new THREE.Vector2(e0.y-e1.y, e1.x-e0.x);
       if (n.dot(e0) > 0) {
-        n.x = -n.x;
-        n.y = -n.y;
+        n.negate();
       }
       if (n.dot(p) < 0) return true;
       return false;
@@ -98,11 +83,6 @@ function* GJK(support) {
   }
 };
 
-let circle = new Circle();
-let arrow = [];
-let arrowRate = 0;
-let info = {};
-let g = GJK(circle.support);
 const animate = _ => {
   requestAnimationFrame(animate);
   renderer.render(scene, camera);
@@ -116,7 +96,6 @@ const animate = _ => {
     arrow.forEach(a => scene.add(a));
   }
 };
-animate();
 
 const makePoint = (p, c = 0x0000ff) => {
   const geom = new THREE.CircleGeometry(0.05, 10);
@@ -134,7 +113,7 @@ const makeLine = (p0, p1) => {
   const mat = new THREE.LineBasicMaterial({color : 0x000000});
   const mesh = new THREE.Mesh(geom, mat);
   mesh.position.set((p0.x+p1.x)/2, (p0.y+p1.y)/2, 0);
-  mesh.rotation.set(0,0,new THREE.Vector2(p1.x-p0.x, p1.y-p0.y).angle());
+  mesh.rotation.set(0,0,new THREE.Vector2().subVectors(p1, p0).angle());
   return mesh;
 };
 
@@ -150,20 +129,34 @@ const makeArrow = d => {
   return [sq, tr];
 };
 
+const renderer = new THREE.WebGLRenderer();
+renderer.setClearColor(0x000000);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(500, 500);
+document.getElementById("container").appendChild(renderer.domElement);
+
+const camera = new THREE.OrthographicCamera(2, -2, 2, -2, -2, 2);
+camera.lookAt(new THREE.Vector3(0,0,1));
+
+const scene = new THREE.Scene();
+scene.add(new THREE.AmbientLight(0xffffff));
+
 //origin
 const origin = makePoint(new THREE.Vector2(0,0))
 origin.renderOrder = 1;
 scene.add(origin);
 
-const clear = _ => {
-  edges.forEach(remove);
-  edges.length = 0;
-  circles.forEach(remove);
-  circles.length = 0;
-};
-
 const output = document.getElementById("output");
 output.innerHTML = "Press button";
+
+let circle = new Circle();
+let arrow = [];
+let arrowRate = 0;
+let info = {};
+let g = GJK(circle.support);
+
+animate();
+
 window.step = function() {
   const res = g.next();
   if (res.done) {
@@ -176,6 +169,7 @@ window.step = function() {
       remove(circle.mesh);
       circle = new Circle();
       g = GJK(circle.support);
+      output.innerHTML = "Press button";
     }
     return;
   }

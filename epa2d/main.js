@@ -1,15 +1,3 @@
-const renderer = new THREE.WebGLRenderer();
-renderer.setClearColor(0x000000);
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(500, 500);
-document.getElementById("container").appendChild(renderer.domElement);
-
-const camera = new THREE.OrthographicCamera(2, -2, 2, -2, -2, 2);
-camera.lookAt(new THREE.Vector3(0,0,1));
-
-const scene = new THREE.Scene();
-scene.add(new THREE.AmbientLight(0xffffff));
-
 class Edge {
   constructor(p0, p1) {
     this.p0 = p0;
@@ -26,12 +14,11 @@ class Convex {
 
 class Circle {
   constructor() {
-    this.r = Math.random() * 0.8 + 0.2;
-    this.center = new THREE.Vector2(Math.random() * 2 - 1, Math.random() * 2 - 1);
+    this.r = Math.random() * 1 + 0.5;
+    const a = Math.random() * 2 * Math.PI;
+    const d = this.r / 2; //中心位置を調整して、絶対に原点を含むことにする(デモ用)
+    this.center = new THREE.Vector2(d * Math.cos(a), d * Math.sin(a));
     this.support = v => v.clone().multiplyScalar(this.r).add(this.center);
-  }
-
-  makeMesh() {
     const geom = new THREE.CircleGeometry(this.r, 100);
     const mat = new THREE.MeshBasicMaterial({color : 0xffffff, side: THREE.DoubleSide});
     const mesh = new THREE.Mesh(geom, mat);
@@ -48,35 +35,40 @@ const remove = mesh => {
   mesh.material.dispose();
 };
 
-
+//本来は物体が原点を含むかどうかの真偽を返せばよいが、EPAにつなげる関係上、
+//当たらなかったらfalseを当たったら原点を含む三角形を返す関数としている
 function GJK(support) {
   //1
   const a0 = Math.random() * 2 * Math.PI;
   const v0 = new THREE.Vector2(Math.cos(a0), Math.sin(a0));
   let p0 = support(v0);
   //2
-  if (p0.x === 0 && p0.y === 0 && p0.z === 0) return true;
+  if (p0.x === 0 && p0.y === 0 && p0.z === 0) {
+    return true;
+  }
   //3
-  const v1 = new THREE.Vector2(-p0.x, -p0.y).normalize();
+  const v1 = p0.clone().negate().normalize();
   let p1 = support(v1);
   //4
-  if (v1.dot(p1) < 0) return false;
+  if (v1.dot(p1) < 0) {
+    return false;
+  }
   while (true) {
     //5
     const v2 = new THREE.Vector2(p0.y-p1.y, p1.x-p0.x).normalize();
     if (v2.dot(p0) > 0) {
-      v2.x = -v2.x;
-      v2.y = -v2.y;
+      v2.negate();
     }
     let p2 = support(v2);
     //6
-    if (v2.dot(p2) < 0) return false;
+    if (v2.dot(p2) < 0) {
+      return false;
+    }
     //7
     const isOutside = (p, e0, e1) => {
       const n = new THREE.Vector2(e0.y-e1.y, e1.x-e0.x);
       if (n.dot(e0) > 0) {
-        n.x = -n.x;
-        n.y = -n.y;
+        n.negate();
       }
       if (n.dot(p) < 0) return true;
       return false;
@@ -93,18 +85,32 @@ function GJK(support) {
       [p0, p1] = [p0, p1];
       continue;
     }
-    return [p0,p1,p2];
+    return [p0, p1, p2];
   }
 };
 
-function* EPA(convex) {
+function* EPA(support) {
+  //1
+  const gjkResult = GJK(support);
+  //2
+  if (!gjkResult) return null;
+  //3
+  if (gjkResult.length < 3) {
+    return new THREE.Vector2(0,0);
+  }
+  const convex = new Convex(support);
+  convex.edges.push(new Edge(gjkResult[0], gjkResult[1]));
+  convex.edges.push(new Edge(gjkResult[1], gjkResult[2]));
+  convex.edges.push(new Edge(gjkResult[2], gjkResult[0]));
   let beforePos;
+  const g = convex.edges.map(e => new THREE.Vector2().addVectors(e.p0, e.p1)).reduce((a,b) => a.add(b)).multiplyScalar(1/6);
   yield {edges: convex.edges, first: true};
   while (true) {
+    //4
     const distToEdge = (e0, e1) => {
-      const v = new THREE.Vector2(e1.x-e0.x, e1.y-e0.y);
+      const v = new THREE.Vector2().subVectors(e1, e0);
       const edgeLen = v.length();
-      let t = new THREE.Vector2(-e0.x, -e0.y).dot(v) / edgeLen / edgeLen;
+      let t = -e0.dot(v) / edgeLen / edgeLen;
       if (t < 0) t = 0;
       if (t > 1) t = 1;
       return e0.clone().add(v.multiplyScalar(t)).length();
@@ -114,19 +120,18 @@ function* EPA(convex) {
     const nearestEdgeIndex = nearestEdgeInfo.index;
     yield {edge: nearestEdge};
     const normal = new THREE.Vector2(nearestEdge.p0.y-nearestEdge.p1.y, nearestEdge.p1.x-nearestEdge.p0.x).normalize();
-    if (normal.dot(nearestEdge.p0) < 0) {
-      normal.x = -normal.x;
-      normal.y = -normal.y;
+    if (normal.dot(new THREE.Vector2().subVectors(nearestEdge.p0,g)) < 0) {
+      normal.negate();
     }
     yield {vector: normal};
     const newPos = convex.support(normal);
     yield {newPos: newPos};
-    //2.
+    //5.
     convex.edges.splice(nearestEdgeIndex, 1);
     convex.edges.push(new Edge(nearestEdge.p0, newPos));
     convex.edges.push(new Edge(nearestEdge.p1, newPos));
     yield {edges: convex.edges};
-    //3.
+    //6.
     if (beforePos) {
       if (beforePos.distanceTo(newPos) < 0.1) {
         return {result: normal.multiplyScalar(normal.dot(nearestEdge.p0))};
@@ -137,29 +142,6 @@ function* EPA(convex) {
   }
 }
 
-const edges = [];
-const circles = [];
-let arrow = [];
-let arrowRate = 0;
-let info = {};
-let circle;
-let g;
-const init = _ => {
-  circle = new Circle();
-  let triangle = GJK(circle.support);
-  while (!triangle) {
-    circle = new Circle();
-    triangle = GJK(circle.support);
-  }
-  let convex = new Convex(circle.support);
-  convex.edges.push(new Edge(triangle[0], triangle[1]));
-  convex.edges.push(new Edge(triangle[1], triangle[2]));
-  convex.edges.push(new Edge(triangle[2], triangle[0]));
-  g = EPA(convex);
-  circle.makeMesh();
-  scene.add(circle.mesh);
-};
-init();
 const animate = _ => {
   requestAnimationFrame(animate);
   renderer.render(scene, camera);
@@ -173,7 +155,6 @@ const animate = _ => {
     arrow.forEach(a => scene.add(a));
   }
 };
-animate();
 
 const makePoint = (p, c = 0x0000ff) => {
   const geom = new THREE.CircleGeometry(0.05, 10);
@@ -207,22 +188,34 @@ const makeArrow = (d, color = 0xff0000) => {
   return [sq, tr];
 };
 
+const renderer = new THREE.WebGLRenderer();
+renderer.setClearColor(0x000000);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(500, 500);
+document.getElementById("container").appendChild(renderer.domElement);
+
+const camera = new THREE.OrthographicCamera(2, -2, 2, -2, -2, 2);
+camera.lookAt(new THREE.Vector3(0,0,1));
+
+const scene = new THREE.Scene();
+scene.add(new THREE.AmbientLight(0xffffff));
+
 //origin
 const origin = makePoint(new THREE.Vector2(0,0))
 origin.renderOrder = 1;
 scene.add(origin);
 
-const clear = _ => {
-  if (!info) return;
-  remove(info.beforePos);
-  remove(info.newPos);
-  remove(info.edge);
-  info.edges.forEach(remove);
-  info.result.forEach(remove);
-};
-
 const output = document.getElementById("output");
-output.innerHTML = "Press any key";
+output.innerHTML = "Press button";
+
+let circle = new Circle();
+let arrow = [];
+let arrowRate = 0;
+let info = {};
+let g = EPA(circle.support);
+
+animate();
+
 window.step = function() {
   const res = g.next();
   if (res.done) {
@@ -239,7 +232,8 @@ window.step = function() {
     info.edges.forEach(remove);
     info.result.forEach(remove);
     remove(circle.mesh);
-    init();
+    circle = new Circle();
+    g = EPA(circle.support);
     output.innerHTML = "Press button";
     return;
   }

@@ -1,22 +1,3 @@
-const renderer = new THREE.WebGLRenderer();
-renderer.setClearColor(0x000000);
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(500, 500);
-document.getElementById("container").appendChild(renderer.domElement);
-
-const camera = new THREE.OrthographicCamera(3, -3, 3, -3, -3, 3);
-camera.position.set(0,0,-1);
-camera.lookAt(new THREE.Vector3(0,0,1));
-
-const scene = new THREE.Scene();
-scene.add(new THREE.PointLight(0xffffff));
-scene.add(new THREE.AmbientLight(0x505050));
-
-const control = new THREE.TrackballControls(camera);
-control.enableDamping = true;
-control.enableZoom = true;
-control.rotateSpeed = 1;
-
 class Sphere {
   constructor() {
     const r = Math.random() * 0.5 + 0.4;
@@ -51,7 +32,7 @@ function* GJK(support) {
     return true;
   }
   //3
-  const v1 = new THREE.Vector3(-p0.x, -p0.y, -p0.z).normalize();
+  const v1 = p0.clone().negate().normalize();
   yield {vector: v1, phase : 1};
   let p1 = support(v1);
   yield {points: [p0, p1]};
@@ -72,9 +53,7 @@ function* GJK(support) {
   };
   const v2 = getOrtho(p0.x-p1.x, p0.y-p1.y, p0.z-p1.z);
   if (v2.dot(p0) > 0) {
-    v2.x = -v2.x;
-    v2.y = -v2.y;
-    v2.z = -v2.z;
+    v2.negate();
   }
   yield {vector: v2, phase : 2};
   let p2 = support(v2);
@@ -86,11 +65,9 @@ function* GJK(support) {
   }
   while (true) {
     //7
-    const v3 = new THREE.Vector3(p1.x-p0.x, p1.y-p0.y, p1.z-p0.z).cross(new THREE.Vector3(p2.x-p1.x, p2.y-p1.y, p2.z-p1.z)).normalize();
+    const v3 = new THREE.Vector3().subVectors(p1, p0).cross(new THREE.Vector3().subVectors(p2, p1)).normalize();
     if (v3.dot(p0) > 0) {
-      v3.x = -v3.x;
-      v3.y = -v3.y;
-      v3.z = -v3.z;
+      v3.negate();
     }
     yield {vector: v3, phase : 3};
     let p3 = support(v3);
@@ -102,11 +79,9 @@ function* GJK(support) {
     }
     //9
     const isOutside = (p, f0, f1, f2) => {
-      const n = new THREE.Vector3(f1.x-f0.x, f1.y-f0.y, f1.z-f0.z).cross(new THREE.Vector3(f2.x-f1.x, f2.y-f1.y, f2.z-f1.z)).normalize();
+      const n = new THREE.Vector3().subVectors(f1, f0).cross(new THREE.Vector3().subVectors(f2, f1)).normalize();
       if (n.dot(f0) > 0) {
-        n.x = -n.x;
-        n.y = -n.y;
-        n.z = -n.z;
+        n.negate();
       }
       if (n.dot(p) < 0) return true;
       return false;
@@ -136,11 +111,6 @@ function* GJK(support) {
   }
 };
 
-var sphere = new Sphere();
-let arrow = [];
-let arrowRate = 0;
-let info = {};
-let g = GJK(sphere.support);
 const animate = _ => {
   requestAnimationFrame(animate);
   control.update();
@@ -155,7 +125,6 @@ const animate = _ => {
     arrow.forEach(a => scene.add(a));
   }
 };
-animate();
 
 const makePoint = (p, c = 0x0000ff) => {
   const geom = new THREE.SphereGeometry(0.05);
@@ -189,13 +158,41 @@ const makeArrow = d => {
   return [head, tail];
 };
 
+const renderer = new THREE.WebGLRenderer();
+renderer.setClearColor(0x000000);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(500, 500);
+document.getElementById("container").appendChild(renderer.domElement);
+
+const camera = new THREE.OrthographicCamera(3, -3, 3, -3, -3, 3);
+camera.position.set(0,0,-1);
+camera.lookAt(new THREE.Vector3(0,0,1));
+
+const scene = new THREE.Scene();
+scene.add(new THREE.PointLight(0xffffff));
+scene.add(new THREE.AmbientLight(0x505050));
+
+const control = new THREE.TrackballControls(camera);
+control.enableDamping = true;
+control.enableZoom = true;
+control.rotateSpeed = 1;
+
 //origin
 const origin = makePoint(new THREE.Vector3(0,0,0))
 origin.renderOrder = 1;
 scene.add(origin);
 
+var sphere = new Sphere();
+let arrow = [];
+let arrowRate = 0;
+let info = {};
+let g = GJK(sphere.support);
+
 const output = document.getElementById("output");
 output.innerHTML = "Press button";
+
+animate();
+
 window.step = function() {
   const res = g.next();
   if (res.done) {
