@@ -291,7 +291,7 @@ scene.add(new THREE.AmbientLight(0x505050));
 
 const control = new THREE.TrackballControls(camera);
 control.enableDamping = true;
-control.enableZoom = true;
+control.noZoom = true;
 control.rotateSpeed = 1;
 
 //origin
