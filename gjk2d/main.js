@@ -92,7 +92,7 @@ const animate = _ => {
   arrow.forEach(remove);
   arrow.length = 0;
   if (info.vector) {
-    arrow = makeArrow(info.vector.clone().multiplyScalar(len * 0.3));
+    arrow = makeArrow(info.vector.clone().multiplyScalar(len * 0.5));
     arrow.forEach(a => scene.add(a));
   }
 };
@@ -117,13 +117,14 @@ const makeLine = (p0, p1) => {
   return mesh;
 };
 
-const makeArrow = d => {
+const makeArrow = (d, color = 0xff0000) => {
   const scene = new THREE.Scene();
-  const mat = new THREE.MeshBasicMaterial({color : 0xff0000});
-  const sq = new THREE.Mesh(new THREE.BoxGeometry(d.length(), 0.05), mat);
-  const tr = new THREE.Mesh(new THREE.CircleGeometry(0.1, 3), mat);
+  const mat = new THREE.MeshBasicMaterial({color : color});
+  const sq = new THREE.Mesh(new THREE.BoxGeometry(d.length()-0.1, 0.03), mat);
+  const tr = new THREE.Mesh(new THREE.CircleGeometry(0.05, 3), mat);
+  const n = d.clone().normalize();
   sq.position.set(d.x/2, d.y/2, 0);
-  tr.position.set(d.x, d.y, 0);
+  tr.position.set(d.x-n.x*0.05, d.y-n.y*0.05, 0);
   sq.rotation.set(0,0,d.angle());
   tr.rotation.set(0,0,d.angle());
   return [sq, tr];
@@ -154,6 +155,7 @@ let arrow = [];
 let arrowRate = 0;
 let info = {};
 let g = GJK(circle.support);
+let hasStarted = false;
 
 animate();
 
@@ -162,6 +164,12 @@ window.step = function() {
   if (res.done) {
     if (res.value !== undefined) {
       output.innerHTML = res.value ? "衝突した" : "衝突してない";
+      if(res.value) {
+        circle.mesh.material.color.setRGB(1,1,0);
+      } else {
+        circle.mesh.material.color.setRGB(0,1,1);
+      }
+      return true;
     } else {
       info.vector = undefined;
       info.points.forEach(remove);
@@ -226,4 +234,18 @@ window.step = function() {
         break;
     }
   }
+};
+
+window.stepAll = function() {
+  if (hasStarted) return;
+  hasStarted = true;
+  const po = _ => {
+    const res = window.step();
+    if (!res) {
+      setTimeout(po, 100);
+    } else {
+      hasStarted = false;
+    }
+  };
+  setTimeout(po, 100);
 };

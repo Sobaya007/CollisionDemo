@@ -151,7 +151,7 @@ const animate = _ => {
   arrow.forEach(remove);
   arrow.length = 0;
   if (info.vector) {
-    arrow = makeArrow(info.vector.clone().multiplyScalar(len * 0.3));
+    arrow = makeArrow(info.vector.clone().multiplyScalar(len * 0.5));
     arrow.forEach(a => scene.add(a));
   }
 };
@@ -179,10 +179,11 @@ const makeLine = (p0, p1, width, color=0) => {
 const makeArrow = (d, color = 0xff0000) => {
   const scene = new THREE.Scene();
   const mat = new THREE.MeshBasicMaterial({color : color});
-  const sq = new THREE.Mesh(new THREE.BoxGeometry(d.length(), 0.05), mat);
-  const tr = new THREE.Mesh(new THREE.CircleGeometry(0.1, 3), mat);
+  const sq = new THREE.Mesh(new THREE.BoxGeometry(d.length()-0.1, 0.03), mat);
+  const tr = new THREE.Mesh(new THREE.CircleGeometry(0.05, 3), mat);
+  const n = d.clone().normalize();
   sq.position.set(d.x/2, d.y/2, 0);
-  tr.position.set(d.x, d.y, 0);
+  tr.position.set(d.x-n.x*0.05, d.y-n.y*0.05, 0);
   sq.rotation.set(0,0,d.angle());
   tr.rotation.set(0,0,d.angle());
   return [sq, tr];
@@ -226,6 +227,12 @@ window.step = function() {
       remove(info.beforePos);
       remove(info.newPos);
       output.innerHTML = "めりこみ解消ベクトルは青い矢印";
+      if(res.value) {
+        circle.mesh.material.color.setRGB(1,1,0);
+      } else {
+        circle.mesh.material.color.setRGB(0,1,1);
+      }
+      return true;
       return;
     }
     remove(info.edge);
@@ -269,4 +276,14 @@ window.step = function() {
     info.vector = next.vector;
     output.innerHTML = "その辺の法線を取得";
   }
+};
+
+window.stepAll = function() {
+  const po = _ => {
+    const res = window.step();
+    if (!res) {
+      setTimeout(po, 100);
+    }
+  };
+  setTimeout(po, 100);
 };

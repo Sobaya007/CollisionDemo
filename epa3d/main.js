@@ -36,11 +36,15 @@ class Sphere {
     const center = new THREE.Vector3(d * Math.cos(t) * Math.cos(p), d * Math.sin(p), d * Math.sin(t) * Math.cos(p));
     this.support = v => v.clone().multiplyScalar(r).add(center);
     const geom = new THREE.SphereGeometry(r, 10, 10);
-    const mat = new THREE.MeshNormalMaterial({opacity: 0.8, transparent: true});
+    const mat = new THREE.MeshBasicMaterial({color: 0xffffff, opacity: 0.8, transparent: true, side : THREE.FrontSide});
     const mesh = new THREE.Mesh(geom, mat);
     mesh.position.set(center.x, center.y, center.z);
+    const mat2 = new THREE.MeshBasicMaterial({color: 0xffffff, opacity: 0.8, transparent: true, side : THREE.BackSide});
+    const mesh2 = new THREE.Mesh(geom, mat);
+    mesh2.position.set(center.x, center.y, center.z);
     scene.add(mesh);
-    this.mesh = mesh;
+    scene.add(mesh2);
+    this.mesh = [mesh, mesh2];
   }
 }
 
@@ -236,7 +240,7 @@ const makePoint = (p, c = 0x0000ff) => {
 
 const makeLine = (p0, p1) => {
   const len = p0.distanceTo(p1);
-  const geom = new THREE.BoxGeometry(0.01, 0.01, len);
+  const geom = new THREE.BoxGeometry(0.02, 0.02, len);
   const mat = new THREE.LineBasicMaterial({color : 0x000000});
   const mesh = new THREE.Mesh(geom, mat);
   mesh.position.set((p0.x+p1.x)/2, (p0.y+p1.y)/2, (p0.z+p1.z)/2);
@@ -250,19 +254,22 @@ const makeFace = (p0, p1, p2) => {
   geom.vertices.push(p1);
   geom.vertices.push(p2);
   geom.faces.push(new THREE.Face3(0,1,2));
-  const mat = new THREE.MeshBasicMaterial({color : 0xc0c0ff, side : THREE.DoubleSide, transparent: true, opacity : 0.5});
+  const mat = new THREE.MeshBasicMaterial({color : 0xc0c0ff, side : THREE.FrontSide, transparent: true, opacity : 0.5});
   const mesh = new THREE.Mesh(geom, mat);
-  return mesh;
+  const mat2 = new THREE.MeshBasicMaterial({color : 0xc0c0ff, side : THREE.BackSide, transparent: true, opacity : 0.5});
+  const mesh2 = new THREE.Mesh(geom, mat2);
+  return [mesh, mesh2] ;
 };
 
 const makeArrow = d => {
+  const n = d.clone().normalize();
   const scene = new THREE.Scene();
   const mat = new THREE.MeshNormalMaterial({side : THREE.DoubleSide});
   const headGeom = new THREE.CylinderGeometry(0, 0.06, 0.1);
   headGeom.rotateX(Math.PI/2);
   const head = new THREE.Mesh(headGeom, mat);
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, d.length()), mat);
-  head.position.set(d.x, d.y, d.z);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, d.length()-0.1), mat);
+  head.position.set(d.x-n.x*0.1, d.y-n.y*0.1, d.z-n.z*0.1);
   tail.position.set(d.x/2, d.y/2, d.z/2);
   head.lookAt(d.clone().multiplyScalar(2));
   tail.lookAt(d.clone());
@@ -300,6 +307,7 @@ let arrow = [];
 let arrowRate = 0;
 let info = {};
 let g = EPA(sphere.support);
+let hasStarted = false;
 
 animate();
 
@@ -313,12 +321,18 @@ window.step = function() {
       remove(info.beforePos);
       remove(info.newPos);
       output.innerHTML = "めりこみ解消ベクトルは青い矢印";
-      return;
+      if(res.value) {
+        sphere.mesh.map(m => m.material.color.setRGB(1,1,0));
+      } else {
+        sphere.mesh.map(m => m.material.color.setRGB(0,1,1));
+      }
+      return true;
     }
     remove(info.face);
     info.faces.forEach(remove);
     info.result.forEach(remove);
-    remove(sphere.mesh);
+    remove(sphere.mesh[0]);
+    remove(sphere.mesh[1]);
     sphere = new Sphere();
     g = EPA(sphere.support);
     output.innerHTML = "Press button";
@@ -335,19 +349,18 @@ window.step = function() {
     output.innerHTML = "法線方向にサポート写像をとる";
   }
   if (next.face) {
-    const f = info.faces.filter(f => f.geometry instanceof THREE.Geometry)
+    const faces = info.faces.filter(f => f.geometry instanceof THREE.Geometry)
       .filter(f => f.geometry.vertices[0] === next.face.p0
         && f.geometry.vertices[1] === next.face.p1
-        && f.geometry.vertices[2] === next.face.p2)[0];
-    f.material.color.setRGB(1,0,0);
-    //scene.add(info.face = makeFace(next.face.p0, next.face.p1, next.face.p2, 0x0000ff));
+        && f.geometry.vertices[2] === next.face.p2);
+    faces.map(f => f.material.color.setRGB(1,0,0));
     output.innerHTML = "最も近い面を算出";
   }
   if (next.faces) {
     remove(info.face);
     if (info.faces)
       info.faces.forEach(remove);
-    info.faces = next.faces.map(a => makeFace(a.p0, a.p1, a.p2));
+    info.faces = next.faces.map(a => makeFace(a.p0, a.p1, a.p2)).reduce((a,b) => a.concat(b));
     next.faces.forEach(a => {
       info.faces.push(makeLine(a.p0, a.p1));
       info.faces.push(makeLine(a.p1, a.p2));
@@ -366,4 +379,18 @@ window.step = function() {
     info.vector = next.vector;
     output.innerHTML = "その面の法線を取得";
   }
+};
+
+window.stepAll = function() {
+  if (hasStarted) return;
+  hasStarted = true;
+  const po = _ => {
+    const res = window.step();
+    if (!res) {
+      setTimeout(po, 100);
+    } else {
+      hasStarted = false;
+    }
+  };
+  setTimeout(po, 100);
 };

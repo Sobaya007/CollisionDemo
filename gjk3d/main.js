@@ -3,7 +3,7 @@ class Sphere {
     const r = Math.random() * 0.5 + 0.4;
     const center = new THREE.Vector3((Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 1.5);
     const geom = new THREE.SphereGeometry(r, 10, 10);
-    const mat = new THREE.MeshNormalMaterial({opacity: 0.8, transparent: true});
+    const mat = new THREE.MeshBasicMaterial({color: 0xffffff, opacity: 0.8, transparent: true});
     const mesh = new THREE.Mesh(geom, mat);
     mesh.position.set(center.x, center.y, center.z);
     scene.add(mesh);
@@ -145,13 +145,14 @@ const makeLine = (p0, p1) => {
 };
 
 const makeArrow = d => {
+  const n = d.clone().normalize();
   const scene = new THREE.Scene();
   const mat = new THREE.MeshNormalMaterial({side : THREE.DoubleSide});
   const headGeom = new THREE.CylinderGeometry(0, 0.06, 0.1);
   headGeom.rotateX(Math.PI/2);
   const head = new THREE.Mesh(headGeom, mat);
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, d.length()), mat);
-  head.position.set(d.x, d.y, d.z);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, d.length()-0.1), mat);
+  head.position.set(d.x-n.x*0.1, d.y-n.y*0.1, d.z-n.z*0.1);
   tail.position.set(d.x/2, d.y/2, d.z/2);
   head.lookAt(d.clone().multiplyScalar(2));
   tail.lookAt(d.clone());
@@ -187,6 +188,7 @@ let arrow = [];
 let arrowRate = 0;
 let info = {};
 let g = GJK(sphere.support);
+let hasStarted = false;
 
 const output = document.getElementById("output");
 output.innerHTML = "Press button";
@@ -198,6 +200,12 @@ window.step = function() {
   if (res.done) {
     if (res.value !== undefined) {
       output.innerHTML = res.value ? "衝突した" : "衝突してない";
+      if(res.value) {
+        sphere.mesh.material.color.setRGB(1,1,0);
+      } else {
+        sphere.mesh.material.color.setRGB(0,1,1);
+      }
+      return true;
     } else {
       info.vector = undefined;
       info.points.forEach(remove);
@@ -272,4 +280,18 @@ window.step = function() {
         break;
     }
   }
+};
+
+window.stepAll = function() {
+  if (hasStarted) return;
+  hasStarted = true;
+  const po = _ => {
+    const res = window.step();
+    if (!res) {
+      setTimeout(po, 100);
+    } else {
+      hasStarted = false;
+    }
+  };
+  setTimeout(po, 100);
 };
