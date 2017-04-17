@@ -188,7 +188,7 @@ const makeArrow = (d, color = 0xff0000) => {
   return [sq, tr];
 };
 
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({antialias : true});
 renderer.setClearColor(0x000000);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(500, 500);
